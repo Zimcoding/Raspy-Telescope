@@ -27,18 +27,31 @@ import Adafruit_BME280
 import Adafruit_MotorHAT as MtrHat
 import time
 import atexit
+import csv
+import os
 
 # create a default object, no changes to I2C address or frequency
 mh = MtrHat.Adafruit_MotorHAT(addr=0x60)
 
 # recommended for auto-disabling motors on shutdown!
 def turnOffMotors():
-	mh.getMotor(1).run(MtrHat.Adafruit_MotorHAT.RELEASE)
-	mh.getMotor(2).run(MtrHat.Adafruit_MotorHAT.RELEASE)
-	mh.getMotor(3).run(MtrHat.Adafruit_MotorHAT.RELEASE)
-	mh.getMotor(4).run(MtrHat.Adafruit_MotorHAT.RELEASE)
+    mh.getMotor(1).run(MtrHat.Adafruit_MotorHAT.RELEASE)
+    mh.getMotor(2).run(MtrHat.Adafruit_MotorHAT.RELEASE)
+    mh.getMotor(3).run(MtrHat.Adafruit_MotorHAT.RELEASE)
+    mh.getMotor(4).run(MtrHat.Adafruit_MotorHAT.RELEASE)
 
 atexit.register(turnOffMotors)
+
+#Open file to log to
+def DataLogger(data, path):
+    if os.path.exists(path):
+        LogFile = open(path, "ab")
+    else:
+        LogFile = open(path, "wb")
+    datalogger = csv.writer(LogFile, dialect="excel-tab")
+    datalogger.writerow(data)
+    LogFile.close()
+
 
 ################ Actual program
 DewHeater1 = mh.getMotor(1)
@@ -67,7 +80,10 @@ while (True):
     else:
         DewHeater1.run(MtrHat.Adafruit_MotorHAT.RELEASE)
         print "Not heating"
-    time.sleep(1)
+    data = [time.strftime("%H:%M:%S"), degrees, hectopascals, humidity]
+    path = "Logfile_%s.csv" %(time.strftime("%Y_%m_%d"))
+    DataLogger(data, path)
+    time.sleep(10)
 
     
     
