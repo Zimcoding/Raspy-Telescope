@@ -1,2 +1,3 @@
-#Ignore .pyc files
+#Ignore files
 *.pyc
+*.csv

@@ -81,7 +81,7 @@ while (True):
         DewHeater1.run(MtrHat.Adafruit_MotorHAT.RELEASE)
         print "Not heating"
     data = [time.strftime("%H:%M:%S"), degrees, hectopascals, humidity]
-    path = "Logfile_%s.csv" %(time.strftime("%Y_%m_%d"))
+    path = "../Logs/Logfile_%s.csv" %(time.strftime("%Y_%m_%d"))
     DataLogger(data, path)
     time.sleep(10)
 
