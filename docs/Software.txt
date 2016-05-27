@@ -52,3 +52,10 @@ Write this line in /etc/rc.local to start automatically at boot.
 To see the help just execute the tool without any actions.
 
 Cheers ;)
+
+
+
+https://pymotw.com/2/Queue/
+http://www.tutorialspoint.com/python/python_multithreading.htm
+http://www.bogotobogo.com/python/Multithread/python_multithreading_Synchronization_Producer_Consumer_using_Queue.php
+
