@@ -21,3 +21,31 @@ Open another terminal and write (Terminal 2):
 echo "Test" > /dev/pts/3
 Now back to Terminal 1 and you'll see the string "Test".
 
+Use socat init to deamonize:
+https://github.com/asaif/socat-init/blob/master/socat
+INSTALLATION
+
+Installtion steps are so easy just do the follwoing :
+
+    Clone socat-init to your home directory
+
+    $: git clone https://github.com/asaif/socat-init.git /home/$user
+
+    Copy the files to the right path
+
+    sudo cp -a /home/$user/socat-init/socat /etc/init.d/
+    sudo cp -a /home/$user/socat-init/defaults/socat.conf /etc/default/
+
+Now socat-init has been installed and is ready to be used. Restart system just in case.
+Usage
+
+Enter the desired socat command in socat.conf.
+You can use socat-init like any other init file by excuting socat tool and pass the desired action, for example:
+
+/etc/init.d/socat start
+
+Write this line in /etc/rc.local to start automatically at boot.
+
+To see the help just execute the tool without any actions.
+
+Cheers ;)
