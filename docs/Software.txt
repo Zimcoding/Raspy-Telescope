@@ -3,9 +3,12 @@ http://www.xappsoftware.com/wordpress/2013/10/07/using-virtual-serial-ports-on-l
 However let’s try socat:
 Installation on Ubuntu 
 To install socat on Ubuntu (I'm using 12.04) just run the following command:
-	# sudo apt-get install socatOpen a terminal (let's call it Terminal 0) and execute it:
+	# sudo apt-get install socat
+Open a terminal (let's call it Terminal 0) and execute it:
 	socat -d -d pty,raw,echo=0 pty,raw,echo=0
-	socat /dev/ttyS0,raw,echo=0,crnl /dev/ttyS1,raw,echo=0,crnl
+	socat PTY,link=/dev/ttyS0,raw,echo=0,crnl PTY,link=/dev/ttyS1,raw,echo=0,crnl
+	chmod o+rw /dev/ttyS0
+	chmod o+rw /dev/ttyS1
 The code above returns:
 	2013/11/01 13:47:27 socat[2506] N PTY is /dev/pts/2
 	2013/11/01 13:47:27 socat[2506] N PTY is /dev/pts/3
