@@ -5,6 +5,7 @@ import serial
 import threading
 import sys
 import Queue
+import sensors
 
 port = '/dev/ttyS1'
 baudrate = 9600
@@ -20,9 +21,7 @@ motor_moving = False
 version = 1
 
 read_q =  Queue.Queue()
-#rx_q =  Queue.Queue()
 write_q =  Queue.Queue()
-#tx_q =  Queue.Queue()
 
 # configure the serial connections (the parameters differs on the device you are connecting to)
 try:
@@ -30,6 +29,11 @@ try:
     print "Port opened: '{}'".format(serial_port.port)
 except serial.SerialException, e:
     print "Could not open serial port '{}': {}".format(port, e)
+
+try:
+    sensor = sensors.EnvSensor()
+except:
+    print "sensor not initialised"
 
 ### Definitions of fundtions ###
 
@@ -54,7 +58,7 @@ def read_from_serial(sercon, rx_q):
             if serial_line:
                 rx_q.put(serial_line)
                 #print serial_line
-                sys.stdout.flush()
+                #sys.stdout.flush()
         except kill_thread:
             break
 
@@ -62,35 +66,50 @@ def read_from_serial(sercon, rx_q):
 def write_to_serial(sercon, tx_q):
     while sercon.isOpen():
         while not tx_q.empty():
-            print 'in write thread'
-            sys.stdout.flush()
+            #print 'in write thread'
+            #sys.stdout.flush()
             cmd_to_send = tx_q.get()
 
-            sercon.write(cmd_to_send.encode('hex'))
+            sercon.write(cmd_to_send.encode())
     
             tx_q.task_done()
 
 def serial_decode(ser_string):
-    ser_string.strip(':')
-    ser_string.strip('#')
-    #Split string after 2
-    command = ser_string[0:2]
-    argument = ser_string[2:6]
+
+    motor_pos = 0
+    motor_pos_new = 0
+    motor_speed = 0
+    motor_half_step = False
+    motor_moving = False
+
+    version = 1
+        
+    if ser_string[0] == ':' and ser_string[len(ser_string)-1] == '#':
+        if ser_string[1] in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]:
+            motor_id = ser_string[1]
+            command = ser_string[2:4]
+            argument = ser_string[4:8]
+        else:
+            command = ser_string[1:3]
+            argument = ser_string[3:7]
+    else:
+        return 'Error: String not correctly formatted'
+            
     print 'Command, Argument: {}, {}'.format(command, argument)
 
     if command == 'GP': #Get Current Motor 1 Positon, Unsigned Hexadecimal
-        return str(motor_pos).zfill(4)
+        return str(int(motor_pos)).zfill(4)#"%0.4X" % motor_pos
     elif command == 'GN': #Get the New Motor 1 Position, Unsigned Hexadecimal
-        return str(motor_pos_new).zfill(4)
+        return "%0.4X" % motor_pos_new
     elif command == 'GT': #Get the Current Temperature, Signed Hexadecimal
-        return str(motor_pos).zfill(4)
+        return "%0.4X" %((round(sensor.read_sensor()[0],0)+2**16)%2**16)
     elif command == 'GD': #Get the Motor 1 speed, valid options are “02, 04, 08, 10, 20”
-        return str(motor_speed).zfill(2)
+        return "%0.4X" % motor_speed
     elif command == 'GH': #“FF” if half step is set, otherwise “00”
         if motor_half_step:
-            return str(255)
+            return "FF"
         else:
-            return str(0).zfill(2)
+            return "00"
     elif command == 'GI': #“01” if the motor is moving, otherwise “00”
         return str(int(motor_moving)).zfill(2)
     elif command == 'GB': #The current RED Led Backlight value, Unsigned Hexadecimal
