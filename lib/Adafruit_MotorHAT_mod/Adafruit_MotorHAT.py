@@ -20,6 +20,7 @@ class Adafruit_StepperMotor:
                 self.steppingcounter = 0
                 self.currentstep = 0
                 self.stop_stepper = False
+                self.start_time = 0
 
                 num -= 1
 
@@ -39,6 +40,8 @@ class Adafruit_StepperMotor:
                         self.BIN1 = 5
                 else:
                         raise NameError('MotorHAT Stepper must be between 1 and 2 inclusive')
+                
+                self.pin_to_set = [self.AIN2, self.BIN1, self.AIN1, self.BIN2]
 
         def setSpeed(self, rpm):
                 self.sec_per_step = 60.0 / (self.revsteps * rpm)
@@ -46,6 +49,7 @@ class Adafruit_StepperMotor:
 
         def oneStep(self, dir, style):
                 pwm_a = pwm_b = 255
+                coil_steps = 1
 
                 # first determine what sort of stepping procedure we're up to
                 if (style == Adafruit_MotorHAT.SINGLE):
@@ -61,6 +65,7 @@ class Adafruit_StepperMotor:
                                         self.currentstep += self.MICROSTEPS
                                 else:
                                         self.currentstep -= self.MICROSTEPS
+                        coil_steps = 2
                 if (style == Adafruit_MotorHAT.DOUBLE):
                         if not (self.currentstep/(self.MICROSTEPS/2) % 2):
                                 # we're at an even step, weird
@@ -74,12 +79,13 @@ class Adafruit_StepperMotor:
                                         self.currentstep += self.MICROSTEPS
                                 else:
                                         self.currentstep -= self.MICROSTEPS
+                        coil_steps = 2
                 if (style == Adafruit_MotorHAT.INTERLEAVE):
                         if (dir == Adafruit_MotorHAT.FORWARD):
                                 self.currentstep += self.MICROSTEPS/2
                         else:
                                 self.currentstep -= self.MICROSTEPS/2
-
+                        coil_steps = 1
                 if (style == Adafruit_MotorHAT.MICROSTEP):
                         if (dir == Adafruit_MotorHAT.FORWARD):
                                 self.currentstep += 1
@@ -117,6 +123,8 @@ class Adafruit_StepperMotor:
                 coils = [0, 0, 0, 0]
                 prev_coil = [0, 0, 0, 0]
 
+                
+
                 if (style == Adafruit_MotorHAT.MICROSTEP):
                         if (self.currentstep >= 0) and (self.currentstep < self.MICROSTEPS):
                                 coils = [1, 1, 0, 0]
@@ -136,16 +144,17 @@ class Adafruit_StepperMotor:
                                         [0, 0, 0, 1],
                                         [1, 0, 0, 1] ]
                         if (dir == Adafruit_MotorHAT.FORWARD):
-                                prev_coil = step2coils[(self.currentstep/(self.MICROSTEPS/2) - 1) % len(step2coils)]
+                                prev_coil = step2coils[(self.currentstep/(self.MICROSTEPS/2) - coil_steps) % len(step2coils)]
                         else:
-                                prev_coil = step2coils[(self.currentstep/(self.MICROSTEPS/2) + 1) % len(step2coils)]
+                                prev_coil = step2coils[(self.currentstep/(self.MICROSTEPS/2) + coil_steps) % len(step2coils)]
                         coils = step2coils[self.currentstep/(self.MICROSTEPS/2)]
 
                 #print "coils state = " + str(coils)
-                pin_to_set = [self.AIN2, self.BIN1, self.AIN1, self.BIN2]
+                        
+                self.start_time = time.time()
                 for pin in range (0, 4):
                         if prev_coil[pin] != coils[pin]:
-                               self.MC.setPin(pin_to_set[pin], coils[pin])
+                               self.MC.setPin(self.pin_to_set[pin], coils[pin])
 
                 return self.currentstep
 
@@ -165,12 +174,12 @@ class Adafruit_StepperMotor:
                 test_time = time.time()
                 for s in range(steps):
                         if not self.stop_stepper:
-                                start = time.time()
                                 lateststep = self.oneStep(direction, stepstyle)
                                 try:
                                         #Compensate for the used time in execution
-                                        time.sleep(time.time() - start - s_per_s)
+                                        time.sleep(s_per_s - (time.time() - self.start_time))
                                 except:
+                                        logging.debug("time: {}".format(s_per_s - (time.time() - self.start_time)))
                                         pass
                         else:
                                 self.stop_stepper = False
@@ -248,7 +257,7 @@ class Adafruit_MotorHAT:
                 self._i2caddr = addr            # default addr on HAT
                 self._frequency = freq          # default @1600Hz PWM freq
                 self.motors = [ Adafruit_DCMotor(self, m) for m in range(4) ]
-                self.steppers = [ Adafruit_StepperMotor(self, 1), Adafruit_StepperMotor(self, 2) ]
+                #self.steppers = [ Adafruit_StepperMotor(self, 1), Adafruit_StepperMotor(self, 2) ]
                 self._pwm =  PWM(addr, debug=False)
                 self._pwm.setPWMFreq(self._frequency)
 
@@ -265,7 +274,7 @@ class Adafruit_MotorHAT:
         def getStepper(self, steps, num):
                 if (num < 1) or (num > 2):
                         raise NameError('MotorHAT Stepper must be between 1 and 2 inclusive')
-                return self.steppers[num-1]
+                return Adafruit_StepperMotor(self, num, steps)
 
         def getMotor(self, num):
                 if (num < 1) or (num > 4):

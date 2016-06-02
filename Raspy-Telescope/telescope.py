@@ -32,42 +32,55 @@ def serial_actions(motor_id, command, argument):
         log_cmd = False
         return "%0.4X" % controller.motor_pos #str(int(motor_pos)).zfill(4)
     elif command == 'GN': #Get the New Motor 1 Position, Unsigned Hexadecimal
+        log_cmd = True
         return "%0.4X" % controller.motor_pos_new
-    elif command == 'GT': #Get the Current Temperature, Signed Hexadecimal
+    elif command == 'GT': #Get the Current Temperature, Signed 2 complement Hexadecimal (multiply by 2)
         log_cmd = False
-        return "%0.4X" %((round(multisens.read_sensor()[0],0)+2**16)%2**16)
+        return "%0.4X" %((round(2*multisens.read_sensor()[0],0)+2**16)%2**16)
     elif command == 'GD': #Get the Motor 1 speed, valid options are "02, 04, 08, 10, 20"
+        log_cmd = True
         return "%0.2X" % (controller.motor_speed/6)
     elif command == 'GH': #"FF" if half step is set, otherwise "00"
         if controller.motor_half_step:
+            log_cmd = True
             return "FF"
         else:
             return "00"
     elif command == 'GI': #"01" if the motor is moving, otherwise "00"
+        log_cmd = True
         return str(int(controller.motor_running)).zfill(2)
     elif command == 'GB': #The current RED Led Backlight value, Unsigned Hexadecimal
+        log_cmd = True
         return "00"
     elif command == 'GV': #Code for current firmware version
+        log_cmd = True
         return "10"
     elif command == 'SP': #Set the Current Motor 1 Position, Unsigned Hexadecimal
+        log_cmd = True
         controller.motor_pos = int(argument, 16)
         return
     elif command == 'SN': #Set the New Motor 1 Position, Unsigned Hexadecimal
+        log_cmd = True
         controller.motor_pos_new = int(argument, 16)
         return 
     elif command == 'SF': #Set Motor 1 to Full Step
+        log_cmd = True
         controller.motor_set_step_type(False)
         return
     elif command == 'SH': #Set Motor 1 to Half Step
+        log_cmd = True
         controller.motor_set_step_type(True)
         return
     elif command == 'SD': #Set the Motor 1 speed, valid options are "02, 04, 08, 10, 20"
+        log_cmd = True
         controller.motor_set_speed(int(argument)*6)
         return 
     elif command == 'FG': #Start a Motor 1 move, moves the motor to the New Position.
+        log_cmd = True
         controller.start_motor()
         return 
     elif command == 'FQ': #Halt Motor 1 move, position is retained, motor is stopped.
+        log_cmd = True
         controller.stop_motor()
         return
     elif command == 'C#':
@@ -78,7 +91,11 @@ def serial_actions(motor_id, command, argument):
     if log_cmd:
         logging.info("Command send: {}, {}".format(command, argument))
 
-
+def shutdown ():
+    controller.async_stop()
+    controller.turn_off_all()
+    if read_thread.isAlive():
+        ser_port.kill_thread = True
 
 
 ### Main ###
@@ -109,12 +126,13 @@ while True:
             logging.debug("Return string: {}".format(str_to_serial)) 
             ser_port.write_q.put(str_to_serial)
     except KeyboardInterrupt:
-        controller.async_stop()
-        controller.turn_off_all()
-        if read_thread.isAlive():
-            ser_port.kill_thread = True
+        shutdown()
         break
-    time.sleep(0.1)
+    try:
+        time.sleep(0.1)
+    except KeyboardInterrupt:
+        shutdown()
+        break
             
 ser_port.serial_port.close()
         

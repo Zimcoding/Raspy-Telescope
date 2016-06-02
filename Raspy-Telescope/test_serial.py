@@ -12,7 +12,7 @@ def write_to_serial(sercon, data):
 
 serport = serial.Serial(port='/dev/ttyS0', baudrate=9600)
 
-write_data = ["SH", "SN0100", "SD02", "FG"]
+write_data = ["SF", "SN0000", "SD10", "FG"]
 
 try:
     for cmd in write_data:

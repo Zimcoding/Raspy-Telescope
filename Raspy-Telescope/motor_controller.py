@@ -65,7 +65,7 @@ class StepperController:
 
         def motor_set_speed(self, speed):
                 self.motor_speed = speed
-                self.speed_pps = speed/60*self._ppr
+                self.speed_pps = float(speed)/60*self._ppr
                 self.logger.info("Speed: {} RPM".format(speed))
                 if   self.speed_pps > 95 and  self.speed_pps < 193:
                         self.mypwm.setPWMFreq( self.speed_pps/4)       # Speed is 4 steps per frequency puls
@@ -85,6 +85,8 @@ class StepperController:
                 return
 
         def start_motor (self, position=None):
+                if self.step_type != 2 and self.step_type != 3:
+                    self.motor_set_step_type(self.motor_half_step)
                 if not position == None:
                     self.motor_pos_new = position
                 if self.speed_pps > 95 and  self.speed_pps < 193:       #High speed stepping
@@ -117,6 +119,7 @@ class StepperController:
                         self.logger.debug("Putting " + str(["fast", position]) + " : " + str(self.motorq.qsize()) + " items in queue")
                 elif self.speed_pps < 96:
                         self.motorq.put(["slow", position])
+                        self.logger.debug("speed_pps: {}".format(self.speed_pps))
                         self.logger.debug("Putting " + str(["slow", position]) + " : " + str(self.motorq.qsize()) + " items in queue")
                 else:
                         self.logger.error("Speed {} rpm is to high or otherwise wrong".format(self.motor_speed))
@@ -135,13 +138,18 @@ class StepperController:
         
         def stop_motor (self):
                 self.motorq.put(["stop", 0])
-                self.mh.steppers[self._number -1].stop_stepper = True
+                self.myStepper.stop_stepper = True
                 return
         
         def async_stop(self):
-                self.mh.steppers[self._number -1].stop_stepper = True
+                self.myStepper.stop_stepper = True
                 self.motorq.put(["exit", 0])
                 return
+        def calc_pos(self, direction, start_time):
+            if direction:
+                self.motor_pos =self.motor_pos + int((time.time() - start_time)*self.speed_pps * (2 if self.motor_half_step else 1))
+            else:
+                self.motor_pos =self.motor_pos - int((time.time() - start_time)*self.speed_pps * (2 if self.motor_half_step else 1))
 
         def async_motor (self):
                 steps = 0
@@ -164,7 +172,7 @@ class StepperController:
                                 elif command == "fast":
                                         running_type = command
                                         try:
-                                              if   self.step_type == 3:
+                                              if   self.motor_half_step:
                                                   #t= steps/pulses per second
                                                   run_time = (float(abs(steps))/float(self.speed_pps))/2
                                               else:
@@ -182,6 +190,11 @@ class StepperController:
                                 elif command == "slow":
                                         running_type = command
                                         try:
+                                            if   self.step_type == 3:
+                                                  #t= steps/pulses per second
+                                                  run_time = (float(abs(steps))/float(self.speed_pps))/2
+                                            else:
+                                                  run_time = (float(abs(steps))/float(self.speed_pps)) 
                                             start_time = time.time()
                                             self.motor_running = True
                                             self.logger.info("Going to position {}".format(self.motor_pos_new))
@@ -199,11 +212,8 @@ class StepperController:
                                             self.motor_pos = self.motor_pos + steps - step_count
                                         else:
                                             self.motor_pos = self.motor_pos - steps - step_count
-                                    elif running_type == "fast":
-                                        if direction:
-                                            self.motor_pos =self.motor_pos + int((time.time() - start_time)*self.speed_pps)
-                                        else:
-                                            self.motor_pos =self.motor_pos - int((time.time() - start_time)*self.speed_pps)
+                                    elif running_type == "fast":                                        
+                                        self.calc_pos(direction, start_time)
                                     run_time = 0
                                     self.logger.info("Reached position {}, {}".format(self.motor_pos, direction))
 
@@ -217,10 +227,7 @@ class StepperController:
                                 if running_type == "fast":                               
                                         self.mypwm.setPWM(self.PWMA, 0, 0)
                                         self.mypwm.setPWM(self.PWMB, 0, 0)
-                                        if direction:
-                                            self.motor_pos =self.motor_pos + int((time.time() - start_time)*self.speed_pps)
-                                        else:
-                                            self.motor_pos =self.motor_pos - int((time.time() - start_time)*self.speed_pps)
+                                        self.calc_pos(direction, start_time)
                                 elif running_type == "slow":
                                         if direction:
                                             self.motor_pos = self.motor_pos + steps
