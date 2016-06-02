@@ -5,19 +5,16 @@ import Queue
 import time
 import logging
 import sys
-from Adafruit_MotorHAT import Adafruit_MotorHAT, Adafruit_DCMotor, Adafruit_StepperMotor, Adafruit_PWM_Servo_Driver
+sys.path.insert(0, "../lib/Adafruit_MotorHAT_mod")
+from Adafruit_MotorHAT import Adafruit_MotorHAT, Adafruit_DCMotor, Adafruit_StepperMotor
+import Adafruit_PWM_Servo_Driver
 
 def main():
     logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format="(%(name)s %(threadName)-9s) %(message)s")
 
 
 class StepperController:
-        motor_pos = 0
-        motor_pos_new = 0
-        motor_speed = 0
-        motor_half_step = True
-        motor_running = False
-
+        
         def __init__(self, num, logger=None):
                 self._number = num
                 self._ppr = 96                          # pulses per revolution for stepper motor
@@ -32,6 +29,12 @@ class StepperController:
                 self.step_type = 0      #SINGLE = 1     DOUBLE = 2      INTERLEAVE = 3  MICROSTEP = 4
 
                 self.motorq = Queue.Queue(5)
+
+                self.motor_pos = 0
+                self.motor_pos_new = 0
+                self.motor_speed = 0
+                self.motor_half_step = True
+                self.motor_running = False
 
                 #Constants from motorhat library
                 num -= 1
@@ -61,38 +64,52 @@ class StepperController:
                 self.mh.getMotor(4).run(Adafruit_MotorHAT.RELEASE)
 
         def motor_set_speed(self, speed):
-                motor_spd = speed
+                self.motor_speed = speed
                 self.speed_pps = speed/60*self._ppr
-                self.logger.info("speed {}".format(speed))
+                self.logger.info("Speed: {} RPM".format(speed))
                 if   self.speed_pps > 95 and  self.speed_pps < 193:
                         self.mypwm.setPWMFreq( self.speed_pps/4)       # Speed is 4 steps per frequency puls
                 elif  self.speed_pps < 96:
+                        self.mypwm.setPWMFreq(1600)
                         self.myStepper.setSpeed(speed)
                 else:
                         self.logger.error("Speed {} rpm is to high or otherwise wrong".format(speed))
                 return
 
         def motor_set_step_type(self, half_step):
-                motor_half_step = half_step
+                self.motor_half_step = half_step
                 if half_step:
                         self.step_type = 3
                 else:
                         self.step_type = 2
                 return
 
-        def start_motor (self, position=motor_pos_new):
-                motor_pos_new = position
+        def start_motor (self, position=None):
+                if not position == None:
+                    self.motor_pos_new = position
                 if self.speed_pps > 95 and  self.speed_pps < 193:       #High speed stepping
                         if self.step_type == 2:
+                            if self.motor_pos_new > self.motor_pos:     #check direction (forward)
                                 self.mypwm.setPWM(self.AIN2, 0, 2048)
                                 self.mypwm.setPWM(self.BIN1, 1024, 3072)
                                 self.mypwm.setPWM(self.AIN1, 2048, 4095)
                                 self.mypwm.setPWM(self.BIN2, 3072, 512)
+                            else:   
+                                self.mypwm.setPWM(self.AIN2, 3072, 512)
+                                self.mypwm.setPWM(self.BIN1, 2048, 4095)
+                                self.mypwm.setPWM(self.AIN1, 1024, 3072)
+                                self.mypwm.setPWM(self.BIN2, 0, 2048)
                         elif self.step_type == 3:
+                            if self.motor_pos_new > self.motor_pos:
                                 self.mypwm.setPWM(self.AIN2, 0, 1536)
                                 self.mypwm.setPWM(self.BIN1, 1024, 2560)
                                 self.mypwm.setPWM(self.AIN1, 2048, 3584)
                                 self.mypwm.setPWM(self.BIN2, 3072, 512)
+                            else:
+                                self.mypwm.setPWM(self.AIN2, 3072, 512)
+                                self.mypwm.setPWM(self.BIN1, 2048, 3584)
+                                self.mypwm.setPWM(self.AIN1, 1024, 2560)
+                                self.mypwm.setPWM(self.BIN2, 0, 1536)
                         else:
                                 self.logger.error("Other step modes currently not supported")
                          
@@ -102,13 +119,27 @@ class StepperController:
                         self.motorq.put(["slow", position])
                         self.logger.debug("Putting " + str(["slow", position]) + " : " + str(self.motorq.qsize()) + " items in queue")
                 else:
-                        self.logger.error("Speed {} rpm is to high or otherwise wrong".format(speed))
+                        self.logger.error("Speed {} rpm is to high or otherwise wrong".format(self.motor_speed))
                 return
+        def release_motor (self):
+            self.mh.setPin(self.AIN2, 0)
+            self.mh.setPin(self.BIN1, 0)
+            self.mh.setPin(self.AIN1, 0)
+            self.mh.setPin(self.BIN2, 0)
+            '''if self._number == 2:
+                self.mh.getMotor(3).run(Adafruit_MotorHAT.RELEASE)
+                self.mh.getMotor(4).run(Adafruit_MotorHAT.RELEASE)
+            else :
+                self.mh.getMotor(1).run(Adafruit_MotorHAT.RELEASE)
+                self.mh.getMotor(2).run(Adafruit_MotorHAT.RELEASE)'''
+        
         def stop_motor (self):
                 self.motorq.put(["stop", 0])
+                self.mh.steppers[self._number -1].stop_stepper = True
                 return
         
         def async_stop(self):
+                self.mh.steppers[self._number -1].stop_stepper = True
                 self.motorq.put(["exit", 0])
                 return
 
@@ -116,53 +147,88 @@ class StepperController:
                 steps = 0
                 start_time = 0
                 run_time = 0
+                step_count = 0
+                running_type = "fast"
                 
                 while True:
                         if not self.motorq.empty():
                                 item = self.motorq.get()
                                 command = item[0]
-                                value = item[1]
-                                direction = value > self.motor_pos   #True = going out.
-                                steps = value - self.motor_pos       #Add steps if going out
                                 self.logger.debug("Getting " + str(item) + " : " + str(self.motorq.qsize()) + " items in queue")
+                                direction = self.motor_pos_new > self.motor_pos         #True = going out.
+                                steps = int(abs(self.motor_pos_new - self.motor_pos))   #Add steps if going out
                                 if command == "exit":
                                         #TODO: exec stop commands first
                                         self.turn_off_all()
                                         break
                                 elif command == "fast":
+                                        running_type = command
                                         try:
-                                              start_time = time.time()
-                                              self.mypwm.setPWM(self.PWMA, 0, 4095)
-                                              self.mypwm.setPWM(self.PWMB, 0, 4095)
-                                              motor_running = True
-                                              run_time = (float(steps)/float(self.speed_pps))  #t= steps/pulses per second
-                                              #time.sleep(1-0.0025)
+                                              if   self.step_type == 3:
+                                                  #t= steps/pulses per second
+                                                  run_time = (float(abs(steps))/float(self.speed_pps))/2
+                                              else:
+                                                  run_time = (float(abs(steps))/float(self.speed_pps))
+                                              if run_time > 0.1:
+                                                  start_time = time.time()
+                                                  self.mypwm.setPWM(self.PWMA, 0, 4095)
+                                                  self.mypwm.setPWM(self.PWMB, 0, 4095)
+                                                  self.motor_running = True
+                                                  self.logger.info("Going to position {}".format(self.motor_pos_new))
+                                              else:
+                                                  pass
                                         except:
                                                 self.logger.error("Start fast fault")
                                 elif command == "slow":
+                                        running_type = command
                                         try:
-                                            motor_running = True
-                                            self.myStepper.step(steps, direction,  self.step_type)
+                                            start_time = time.time()
+                                            self.motor_running = True
+                                            self.logger.info("Going to position {}".format(self.motor_pos_new))
+                                            step_count = self.myStepper.step(steps, direction,  self.step_type)
+                                            self.release_motor()
                                         except:
-                                                self.logger.error("Start slow fault")
+                                            self.logger.exception("Start slow fault")
                                 elif command == "stop":
-                                        run_time = time.time() - start_time + 1
-                        if run_time and time.time() - start_time >= run_time:
+                                    self.release_motor()
+
+                                    self.motor_running = False
+                                    
+                                    if running_type == "slow":
+                                        if direction:
+                                            self.motor_pos = self.motor_pos + steps - step_count
+                                        else:
+                                            self.motor_pos = self.motor_pos - steps - step_count
+                                    elif running_type == "fast":
+                                        if direction:
+                                            self.motor_pos =self.motor_pos + int((time.time() - start_time)*self.speed_pps)
+                                        else:
+                                            self.motor_pos =self.motor_pos - int((time.time() - start_time)*self.speed_pps)
+                                    run_time = 0
+                                    self.logger.info("Reached position {}, {}".format(self.motor_pos, direction))
+
+                        # Catch the time to stop the execution of fast moving motor.
+                        if self.motor_running and time.time() - start_time >= run_time:
                                 stop_time = time.time()
                                 self.logger.debug("Running time: {}, expected time: {}".format(stop_time - start_time, run_time))
                                 run_time = 0
-                                motor_running = False
-                                if command == "fast":                               
+                                self.motor_running = False
+
+                                if running_type == "fast":                               
                                         self.mypwm.setPWM(self.PWMA, 0, 0)
                                         self.mypwm.setPWM(self.PWMB, 0, 0)
-                                        motor_pos =(start_time - stop_time)*self.speed_pps
-                                        #print ("time differnce", str(time.time()-start))
-                                elif command == "slow":
-                                         self.mh.getMotor(3).run(Adafruit_MotorHAT.RELEASE)
-                                         motor_pos =(start_time - stop_time)*self.speed_pps
-                                         self.logger.debug("Entering stop at slow speed")
-     
-                        time.sleep(0.1)
+                                        if direction:
+                                            self.motor_pos =self.motor_pos + int((time.time() - start_time)*self.speed_pps)
+                                        else:
+                                            self.motor_pos =self.motor_pos - int((time.time() - start_time)*self.speed_pps)
+                                elif running_type == "slow":
+                                        if direction:
+                                            self.motor_pos = self.motor_pos + steps
+                                        else:
+                                            self.motor_pos = self.motor_pos - steps
+                                        
+                                self.logger.info("Reached position {}".format(self.motor_pos))
+                        time.sleep(0.05)
                         
                 return
 
@@ -179,10 +245,10 @@ if __name__ == '__main__':
         while True: 
                 try:
                         
-                        controller.motor_speed(15)
-                        controller.motor_step_type(True)
+                        controller.motor_set_speed(25)
+                        controller.motor_set_step_type(True)
                         time.sleep(2)
-                        controller.start_motor(200)
+                        controller.start_motor(400)
 
                         time.sleep(10)
 

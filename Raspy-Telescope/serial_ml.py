@@ -43,7 +43,7 @@ class Serial_ML:
 
     def read_serial_line(self, sercon, eol):
         
-        logging.debug(str(eol))
+        #logging.debug(str(eol))
         leneol = len(eol)
         line = bytearray()
         while True:
