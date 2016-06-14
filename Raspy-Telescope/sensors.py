@@ -35,6 +35,7 @@ class EnvSensor:
         self.temperature = 0
         self.pressure = 0
         self.humidity = 0
+        self.time_fine = 0
         
     #Open file to log to
     def data_logger(self, data, path):
@@ -48,6 +49,7 @@ class EnvSensor:
 
     #Read sensor and display
     def read_sensor (self):
+        self.time_fine = self.sensor.t_fine
         self.temperature = self.sensor.read_temperature()
         self.pressure = (self.sensor.read_pressure())/100
         self.humidity = self.sensor.read_humidity()

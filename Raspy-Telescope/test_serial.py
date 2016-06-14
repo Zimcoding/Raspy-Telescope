@@ -12,13 +12,13 @@ def write_to_serial(sercon, data):
 
 serport = serial.Serial(port='/dev/ttyS0', baudrate=9600)
 
-write_data = ["SF", "SN0000", "SD10", "FG"]
+write_data = ["SH", "SN0000", "SD04", "FG"]
 
 try:
     for cmd in write_data:
         print cmd
         write_to_serial(serport, cmd)
-        time.sleep(0.5)
+        time.sleep(0.1)
 except KeyboardInterrupt:
     pass
 serport.close()

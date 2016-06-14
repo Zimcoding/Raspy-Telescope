@@ -7,6 +7,7 @@ import time
 import serial_ml
 import motor_controller
 import sensors
+import dew_heater
 
 def init_main():
     parser = argparse.ArgumentParser()
@@ -25,6 +26,23 @@ def init_main():
     args.loglevel = logging.INFO #TODO: remove later
 
     logging.basicConfig(stream=sys.stdout, level=args.loglevel, format="(%(name)s %(threadName)-9s) %(message)s")
+
+#Lqunch the parralel loops
+def launch_threads():
+    motor_thread = threading.Thread(target=controller.async_motor)
+    motor_thread.setDaemon(True)
+    motor_thread.start()
+
+    read_thread = threading.Thread(target=ser_port.read_from_serial, args=(ser_port.serial_port, ser_port.read_q))
+    read_thread.setDaemon(True)
+    read_thread.start()
+    write_thread = threading.Thread(target=ser_port.write_to_serial, args=(ser_port.serial_port, ser_port.write_q))
+    write_thread.setDaemon(True)
+    write_thread.start()
+
+    dew_heater_thread = threading.Thread(target=heater.heat)
+    dew_heater_thread.setDaemon(True)
+    dew_heater_thread.start()
 
 def serial_actions(motor_id, command, argument):
     log_cmd = True
@@ -57,11 +75,19 @@ def serial_actions(motor_id, command, argument):
         return "10"
     elif command == 'SP': #Set the Current Motor 1 Position, Unsigned Hexadecimal
         log_cmd = True
-        controller.motor_pos = int(argument, 16)
+        try:
+            controller.motor_pos = int(argument, 16)
+        except :
+            logging.exception("controller pos not changed:")
+            pass
         return
     elif command == 'SN': #Set the New Motor 1 Position, Unsigned Hexadecimal
         log_cmd = True
-        controller.motor_pos_new = int(argument, 16)
+        try:
+            controller.motor_pos_new = int(argument, 16)
+        except:
+            logging.exception("controller not moved")
+            pass
         return 
     elif command == 'SF': #Set Motor 1 to Full Step
         log_cmd = True
@@ -89,33 +115,31 @@ def serial_actions(motor_id, command, argument):
     else:
         logging.error("command not found")
     if log_cmd:
-        logging.info("Command send: {}, {}".format(command, argument))
+        logging.debug("Command send: {}, {}".format(command, argument))
 
 def shutdown ():
     controller.async_stop()
     controller.turn_off_all()
-    if read_thread.isAlive():
-        ser_port.kill_thread = True
+    #if dew_heater_thread.isAlive():
+    heater.shutdown = True
+    #if read_thread.isAlive():
+    ser_port.kill_thread = True
 
 
 ### Main ###
 
 init_main()
 
+#Initialise connections
 controller = motor_controller.StepperController(2)
 ser_port = serial_ml.Serial_ML()
 try:
     multisens = sensors.EnvSensor()
 except Exception as e:
     logging.exception("sensor not initialised: ")
+heater = dew_heater.DewHeater(controller)
 
-motor_thread = threading.Thread(target=controller.async_motor)
-motor_thread.start()
-
-read_thread = threading.Thread(target=ser_port.read_from_serial, args=(ser_port.serial_port, ser_port.read_q))
-read_thread.start()
-write_thread = threading.Thread(target=ser_port.write_to_serial, args=(ser_port.serial_port, ser_port.write_q))
-write_thread.start()
+launch_threads()
 
 while True:
     try:

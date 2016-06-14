@@ -169,9 +169,10 @@ class Adafruit_StepperMotor:
                         s_per_s /= self.MICROSTEPS
                         steps *= self.MICROSTEPS
 
-                logging.debug("sec per step {}".format(s_per_s))
+                logging.info("sec per step {}".format(s_per_s))
 
                 test_time = time.time()
+                steps_done = 0
                 for s in range(steps):
                         if not self.stop_stepper:
                                 lateststep = self.oneStep(direction, stepstyle)
@@ -181,11 +182,11 @@ class Adafruit_StepperMotor:
                                 except:
                                         logging.debug("time: {}".format(s_per_s - (time.time() - self.start_time)))
                                         pass
+                                steps_done = s
                         else:
-                                self.stop_stepper = False
-                                return s-1
+                                steps_done = s-1
                                 break
-                logging.info("time ran: {}".format(time.time() - test_time))
+                logging.info("time ran: {}, Steps {}".format(time.time() - test_time, steps_done))
 
                 if (stepstyle == Adafruit_MotorHAT.MICROSTEP):
                         # this is an edge case, if we are in between full steps, lets just keep going
@@ -193,6 +194,9 @@ class Adafruit_StepperMotor:
                         while (lateststep != 0) and (lateststep != self.MICROSTEPS):
                                 lateststep = self.oneStep(dir, stepstyle)
                                 time.sleep(s_per_s)
+                if self.stop_stepper:
+                        self.stop_stepper = False
+                return steps_done
 
                 
 class Adafruit_DCMotor:
