@@ -42,6 +42,7 @@ class Adafruit_I2C(object):
     # self.bus = smbus.SMBus(1); # Force I2C1 (512MB Pi's)
     self.bus = smbus.SMBus(busnum if busnum >= 0 else Adafruit_I2C.getPiI2CBusNumber())
     self.debug = debug
+    self.regvals = [None] * 256
 
   def reverseByteOrder(self, data):
     "Reverses the byte order of an int (16-bit) or long (32-bit) value"
@@ -59,12 +60,14 @@ class Adafruit_I2C(object):
 
   def write8(self, reg, value):
     "Writes an 8-bit value to the specified register/address"
-    try:
-      self.bus.write_byte_data(self.address, reg, value)
-      if self.debug:
-        print "I2C: Wrote 0x%02X to register 0x%02X" % (value, reg)
-    except IOError, err:
-      return self.errMsg()
+    if self.regvals[reg] is None or self.regvals[reg] != value:
+        try:
+          self.bus.write_byte_data(self.address, reg, value)
+          self.regvals[reg] = value
+          if self.debug:
+            print("I2C: Wrote 0x%02X to register 0x%02X" % (value, reg))
+        except IOError as err:
+          return self.errMsg()
 
   def write16(self, reg, value):
     "Writes a 16-bit value to the specified register/address pair"
@@ -158,4 +161,4 @@ if __name__ == '__main__':
     bus = Adafruit_I2C(address=0)
     print "Default I2C bus is accessible"
   except:
-    print "Error accessing default I2C bus"
+print "Error accessing default I2C bus"
