@@ -67,7 +67,7 @@ class DewHeater:
                 last_val = self.sensor.humidity
                 if self.sensor.humidity > 80:
                     logging.debug("Starting to heat...")
-                    self.DewHeater1.start_motor(self.controller, int((humidity-80)*5), self.DewHeater1.mh.FORWARD)
+                    self.DewHeater1.start_motor(self.controller, int((self.sensor.humidity-80)*5), self.DewHeater1.mh.FORWARD)
                 else:
                     self.DewHeater1.start_motor(self.controller, 0, self.DewHeater1.mh.RELEASE)
                     logging.debug("Not heating")

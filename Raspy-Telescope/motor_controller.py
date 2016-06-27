@@ -24,7 +24,7 @@ class StepperController:
 
         self.logger = logger or logging.getLogger(__name__)
 
-        self.speed_pps = 0      #Speed in pulses per second
+        self.speed_pps = 20      #Speed in pulses per second
         self.steps = 0
         self.step_type = 0      #SINGLE = 1     DOUBLE = 2      INTERLEAVE = 3  MICROSTEP = 4
 
@@ -273,8 +273,11 @@ class DCMotorController:
         self.motor.run(MtrHat.Adafruit_MotorHAT.RELEASE)
 
     def start_motor (self, contr_handle, duty_cycle, motor_dir):
-        local_motor = self.motor
-        contr_handle.write_motorq(["DCMotor", duty_cycle, motor_dir, self.motor])
+        self.motor.setSpeed(duty_cycle)
+        self.motor.run(motor_dir)
+        logging.info("Heating at: {}% Duty Cycle".format(duty_cycle))
+        #local_motor = self.motor
+        #contr_handle.write_motorq(["DCMotor", duty_cycle, motor_dir, self.motor])
 
 
 if __name__ == '__main__':

@@ -182,9 +182,9 @@ class Adafruit_StepperMotor:
                                 except:
                                         logging.debug("time: {}".format(s_per_s - (time.time() - self.start_time)))
                                         pass
-                                steps_done = s
+                                steps_done = s+1
                         else:
-                                steps_done = s-1
+                                steps_done = s
                                 break
                 logging.info("time ran: {}, Steps {}".format(time.time() - test_time, steps_done))
 
